@@ -7,14 +7,13 @@ interface UseScannerOptions {
   onError?: (error: Error) => void
 }
 
-// Extend Window to include BarcodeDetector (available in Chrome/Android natively)
 type BarcodeFormat =
   | 'ean_13' | 'ean_8' | 'upc_a' | 'upc_e'
   | 'code_128' | 'code_39' | 'qr_code'
   | 'data_matrix' | 'itf' | 'aztec' | 'pdf417'
 
 interface BarcodeDetectorAPI {
-  detect(image: HTMLVideoElement): Promise<Array<{ rawValue: string; format: string }>>
+  detect(image: HTMLVideoElement): Promise<Array<{ rawValue: string }>>
 }
 
 declare global {
@@ -36,17 +35,21 @@ export function useScanner({ onScan, onError }: UseScannerOptions) {
 
   const [isScanning, setIsScanning] = useState(false)
   const [hasPermission, setHasPermission] = useState<boolean | null>(null)
-  const [isSupported] = useState(() =>
-    typeof window !== 'undefined' && 'BarcodeDetector' in window
-  )
+  const [loading, setLoading] = useState(false)
 
   const startScanning = useCallback(async () => {
     if (!videoRef.current) return
-    if (!isSupported) return
 
     detectedRef.current = false
 
     try {
+      // Load polyfill for browsers without native BarcodeDetector (iOS Safari, Firefox)
+      if (!('BarcodeDetector' in window)) {
+        setLoading(true)
+        await import('barcode-detector/polyfill')
+        setLoading(false)
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
       })
@@ -72,13 +75,14 @@ export function useScanner({ onScan, onError }: UseScannerOptions) {
             return
           }
         } catch {
-          // Ignore detection errors on individual frames
+          // Ignore per-frame detection errors
         }
         rafRef.current = requestAnimationFrame(scan)
       }
 
       rafRef.current = requestAnimationFrame(scan)
     } catch (err) {
+      setLoading(false)
       setHasPermission(false)
       setIsScanning(false)
       const error = err as Error
@@ -88,7 +92,7 @@ export function useScanner({ onScan, onError }: UseScannerOptions) {
           : error
       )
     }
-  }, [isSupported, onScan, onError])
+  }, [onScan, onError])
 
   const stopScanning = useCallback(() => {
     if (rafRef.current !== null) {
@@ -99,7 +103,8 @@ export function useScanner({ onScan, onError }: UseScannerOptions) {
     streamRef.current = null
     if (videoRef.current) videoRef.current.srcObject = null
     setIsScanning(false)
+    setLoading(false)
   }, [])
 
-  return { videoRef, isScanning, hasPermission, isSupported, startScanning, stopScanning }
+  return { videoRef, isScanning, hasPermission, loading, startScanning, stopScanning }
 }
