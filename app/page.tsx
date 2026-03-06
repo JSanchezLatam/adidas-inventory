@@ -6,6 +6,10 @@ import { useProductSearch } from '@/hooks/useProductSearch'
 import { ProductCard } from '@/components/Product/ProductCard'
 import { ScannerModal } from '@/components/Scanner/ScannerModal'
 import { useToast } from '@/components/ui/Toast'
+import { useAuthStore } from '@/store/auth.store'
+import { UserGreeting } from '@/components/ui/UserGreeting'
+import { ProductCardSkeleton } from '@/components/ui/Skeleton'
+import { createClient } from '@/lib/supabase/client'
 
 export default function SearchPage() {
   const [query, setQuery] = useState('')
@@ -13,6 +17,14 @@ export default function SearchPage() {
   const { data: results, isLoading } = useProductSearch(query)
   const router = useRouter()
   const { showToast } = useToast()
+  const { role, clearAuth } = useAuthStore()
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    clearAuth()
+    router.push('/login')
+  }
 
   const handleScan = useCallback(
     async (code: string) => {
@@ -40,7 +52,18 @@ export default function SearchPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-black px-4 pt-12 pb-4">
-        <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">adidas</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs text-gray-400 uppercase tracking-widest">adidas</p>
+          <button
+            onClick={handleLogout}
+            className="text-xs text-gray-400 hover:text-white transition-colors"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+        <div className="flex items-center justify-between mb-2">
+          <UserGreeting />
+        </div>
         <h1 className="text-white text-xl font-bold">Bodega</h1>
         {/* Search bar */}
         <div className="flex gap-2 mt-3">
@@ -85,26 +108,15 @@ export default function SearchPage() {
 
       {/* Results */}
       <main className="px-4 py-4 pb-24 flex flex-col gap-3">
-        {/* Idle state */}
-        {!query && (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="text-5xl mb-4">📦</div>
-            <p className="text-gray-500 text-lg font-medium">Busca un producto</p>
-            <p className="text-gray-400 text-sm mt-1">
-              Escribe o escanea el codigo de barras
-            </p>
-          </div>
-        )}
-
-        {/* Loading */}
-        {isLoading && query.length >= 2 && (
-          <div className="flex justify-center py-10">
-            <div className="w-8 h-8 border-2 border-gray-300 border-t-black rounded-full animate-spin" />
+        {/* Loading skeleton */}
+        {isLoading && (
+          <div className="flex flex-col gap-3">
+            {Array.from({ length: 6 }).map((_, i) => <ProductCardSkeleton key={i} />)}
           </div>
         )}
 
         {/* No results */}
-        {!isLoading && query.length >= 2 && results?.length === 0 && (
+        {!isLoading && query && results?.length === 0 && (
           <div className="flex flex-col items-center py-16 text-center">
             <div className="text-4xl mb-3">🔍</div>
             <p className="text-gray-600 font-medium">Sin resultados para &ldquo;{query}&rdquo;</p>
@@ -113,7 +125,7 @@ export default function SearchPage() {
         )}
 
         {/* Product cards */}
-        {results?.map((product) => (
+        {!isLoading && results?.map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}
       </main>
@@ -126,13 +138,15 @@ export default function SearchPage() {
           </svg>
           <span className="text-xs mt-1 font-semibold">Buscar</span>
         </a>
-        <a href="/admin" className="flex-1 flex flex-col items-center py-3 text-gray-400">
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <span className="text-xs mt-1">Admin</span>
-        </a>
+        {role === 'admin' && (
+          <a href="/admin" className="flex-1 flex flex-col items-center py-3 text-gray-400">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="text-xs mt-1">Admin</span>
+          </a>
+        )}
       </nav>
 
       {showScanner && (

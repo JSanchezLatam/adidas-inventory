@@ -6,13 +6,37 @@ import type { Shelf } from '@/lib/supabase/types'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useToast } from '@/components/ui/Toast'
+import { useAuthStore } from '@/store/auth.store'
+import { UserGreeting } from '@/components/ui/UserGreeting'
+import { ShelfCardSkeleton } from '@/components/ui/Skeleton'
 
 export default function ShelvesAdminPage() {
   const [shelves, setShelves] = useState<Shelf[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const router = useRouter()
   const { showToast } = useToast()
+  const { role } = useAuthStore()
+  const isSuperAdmin = role === 'superadmin'
+
+  async function handleDelete(shelf: Shelf) {
+    if (!confirm(`¿Eliminar el anaquel ${shelf.code}? Esta acción no se puede deshacer.`)) return
+    setDeletingId(shelf.id)
+    const res = await fetch('/api/shelves', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: shelf.id }),
+    })
+    setDeletingId(null)
+    if (res.ok) {
+      setShelves((prev) => prev.filter((s) => s.id !== shelf.id))
+      showToast('Anaquel eliminado', 'success')
+    } else {
+      const data = await res.json()
+      showToast(data.error ?? 'Error al eliminar', 'error')
+    }
+  }
 
   useEffect(() => {
     fetch('/api/shelves')
@@ -30,15 +54,18 @@ export default function ShelvesAdminPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-black px-4 pt-12 pb-4">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-2 text-gray-400 text-sm mb-4"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Volver
-        </button>
+        <div className="flex items-center justify-between mb-3">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-gray-400 text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Volver
+          </button>
+          <UserGreeting />
+        </div>
         <div className="flex items-center justify-between">
           <h1 className="text-white text-xl font-bold">Anaqueles</h1>
           <button
@@ -53,8 +80,11 @@ export default function ShelvesAdminPage() {
 
       <main className="px-4 py-4 flex flex-col gap-4 pb-24">
         {loading ? (
-          <div className="flex justify-center py-10">
-            <div className="w-8 h-8 border-2 border-gray-300 border-t-black rounded-full animate-spin" />
+          <div>
+            <div className="h-3 w-20 bg-gray-200 rounded animate-pulse mb-2" />
+            <div className="grid grid-cols-3 gap-2">
+              {Array.from({ length: 9 }).map((_, i) => <ShelfCardSkeleton key={i} />)}
+            </div>
           </div>
         ) : (
           zones.map((zone) => (
@@ -64,9 +94,23 @@ export default function ShelvesAdminPage() {
                 {shelves
                   .filter((s) => (s.zone ?? 'General') === zone)
                   .map((shelf) => (
-                    <div key={shelf.id} className="bg-white rounded-xl border border-gray-200 p-3 text-center">
-                      <p className="font-bold text-gray-900">{shelf.code}</p>
-                      {shelf.label && <p className="text-xs text-gray-400 mt-1 leading-tight">{shelf.label}</p>}
+                    <div key={shelf.id} className="relative">
+                      <a
+                        href={`/admin/shelves/${shelf.id}`}
+                        className="block bg-white rounded-xl border border-gray-200 p-3 text-center active:bg-gray-50"
+                      >
+                        <p className="font-bold text-gray-900">{shelf.code}</p>
+                        {shelf.label && <p className="text-xs text-gray-400 mt-1 leading-tight">{shelf.label}</p>}
+                      </a>
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => handleDelete(shelf)}
+                          disabled={deletingId === shelf.id}
+                          className="w-full mt-1 text-xs text-red-500 disabled:opacity-40 py-1"
+                        >
+                          {deletingId === shelf.id ? '...' : 'Eliminar'}
+                        </button>
+                      )}
                     </div>
                   ))}
               </div>

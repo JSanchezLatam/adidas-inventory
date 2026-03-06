@@ -26,18 +26,16 @@ export default function LoginPage() {
       password,
     })
 
-    if (authError || !data.user) {
+    if (authError || !data.user || !data.session) {
       setError('Credenciales incorrectas')
       setLoading(false)
       return
     }
 
-    // Get role from profile
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: profile } = await supabase.from('user_profiles').select('role').eq('id', data.user.id).single() as any
+    // Role is embedded in the JWT app_metadata — no extra API call needed
+    const role = (data.user.app_metadata?.role as UserRole) ?? 'staff'
 
-    setAuth(data.user, data.session, (profile?.role as UserRole) ?? 'staff')
-    setLoading(false)
+    setAuth(data.user, data.session, role)
     router.push('/')
   }
 

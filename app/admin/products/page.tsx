@@ -6,6 +6,9 @@ import type { Product } from '@/lib/supabase/types'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useToast } from '@/components/ui/Toast'
+import { useAuthStore } from '@/store/auth.store'
+import { UserGreeting } from '@/components/ui/UserGreeting'
+import { ProductCardSkeleton } from '@/components/ui/Skeleton'
 
 export default function ProductsAdminPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -13,9 +16,26 @@ export default function ProductsAdminPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const { showToast } = useToast()
   const router = useRouter()
+  const { role } = useAuthStore()
+  const isSuperAdmin = role === 'superadmin'
+
+  async function handleDelete(p: Product) {
+    if (!confirm(`¿Eliminar "${p.name}"? Esta acción no se puede deshacer.`)) return
+    setDeletingId(p.id)
+    const res = await fetch(`/api/products/${p.id}`, { method: 'DELETE' })
+    setDeletingId(null)
+    if (res.ok) {
+      setProducts((prev) => prev.filter((x) => x.id !== p.id))
+      showToast('Producto eliminado', 'success')
+    } else {
+      const data = await res.json()
+      showToast(data.error ?? 'Error al eliminar', 'error')
+    }
+  }
 
   const filtered = products.filter(
     (p) =>
@@ -25,7 +45,7 @@ export default function ProductsAdminPage() {
   )
 
   useEffect(() => {
-    fetch('/api/products/search?q=a')
+    fetch('/api/products/search')
       .then((r) => r.json())
       .then((data) => {
         setProducts(data)
@@ -49,7 +69,7 @@ export default function ProductsAdminPage() {
     if (res.ok) {
       showToast(`${data.imported} productos importados`, 'success')
       // Reload
-      fetch('/api/products/search?q=a').then((r) => r.json()).then(setProducts)
+      fetch('/api/products/search').then((r) => r.json()).then(setProducts)
     } else {
       showToast(data.error ?? 'Error al importar', 'error')
     }
@@ -59,15 +79,18 @@ export default function ProductsAdminPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-black px-4 pt-12 pb-4">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-2 text-gray-400 text-sm mb-4"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Volver
-        </button>
+        <div className="flex items-center justify-between mb-3">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-gray-400 text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Volver
+          </button>
+          <UserGreeting />
+        </div>
         <div className="flex items-center justify-between">
           <h1 className="text-white text-xl font-bold">Productos</h1>
           <div className="flex gap-2">
@@ -106,23 +129,35 @@ export default function ProductsAdminPage() {
 
       <main className="px-4 py-4 flex flex-col gap-2 pb-24">
         {loading ? (
-          <div className="flex justify-center py-10">
-            <div className="w-8 h-8 border-2 border-gray-300 border-t-black rounded-full animate-spin" />
+          <div className="flex flex-col gap-2">
+            {Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)}
           </div>
         ) : (
           filtered.map((p) => (
             <div
               key={p.id}
-              onClick={() => router.push(`/product/${p.id}`)}
-              className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center gap-3 active:bg-gray-50 cursor-pointer"
+              className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center gap-3"
             >
-              <div className="flex-1 min-w-0">
+              <div
+                className="flex-1 min-w-0 cursor-pointer active:opacity-70"
+                onClick={() => router.push(`/product/${p.id}`)}
+              >
                 <p className="font-medium text-gray-900 text-sm truncate">{p.name}</p>
                 <p className="text-xs text-gray-400">{p.sku} {p.size ? `· T${p.size}` : ''}</p>
               </div>
-              <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
+              {isSuperAdmin ? (
+                <button
+                  onClick={() => handleDelete(p)}
+                  disabled={deletingId === p.id}
+                  className="text-xs text-red-500 flex-shrink-0 disabled:opacity-40 px-1"
+                >
+                  {deletingId === p.id ? '...' : 'Eliminar'}
+                </button>
+              ) : (
+                <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              )}
             </div>
           ))
         )}
@@ -150,7 +185,7 @@ function AddProductModal({
   onClose: () => void
   onSaved: (p: Product) => void
 }) {
-  const [form, setForm] = useState({ sku: '', name: '', barcode: '', reference: '', size: '', color: '', category: '' })
+  const [form, setForm] = useState({ sku: '', name: '', barcode: '', reference: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -192,14 +227,10 @@ function AddProductModal({
         </div>
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <Input label="SKU *" value={form.sku} onChange={(e) => set('sku', e.target.value)} placeholder="HQ8707" />
-          <Input label="Nombre *" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Ultraboost 22" />
+          <Input label="Nombre *" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Termo Adidas 500ml" />
           <Input label="Codigo de barras" value={form.barcode} onChange={(e) => set('barcode', e.target.value)} placeholder="4064057886687" />
           <Input label="Referencia" value={form.reference} onChange={(e) => set('reference', e.target.value)} placeholder="GZ1234" />
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Talla" value={form.size} onChange={(e) => set('size', e.target.value)} placeholder="42" />
-            <Input label="Color" value={form.color} onChange={(e) => set('color', e.target.value)} placeholder="Negro" />
-          </div>
-          <Input label="Categoria" value={form.category} onChange={(e) => set('category', e.target.value)} placeholder="Running" />
+          {/* <Input label="Categoria" value={form.category} onChange={(e) => set('category', e.target.value)} placeholder="Running" /> */}
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <Button type="submit" size="lg" loading={saving} className="w-full mt-2">
             Guardar

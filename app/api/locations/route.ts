@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/supabase/auth-helpers'
 
 export async function GET() {
   const supabase = await createClient()
@@ -13,21 +14,15 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createServiceClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: profile } = await supabase.from('user_profiles').select('role').eq('id', user.id).single() as any
-  if (profile?.role !== 'admin') {
-    return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  }
+  const user = await requireAdmin()
+  if (!user) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
 
   const body = await request.json()
   const { product_id, shelf_id, level, quantity, notes } = body
 
-  const { data, error } = await supabase
+  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
     .from('product_locations')
     .upsert(
       {

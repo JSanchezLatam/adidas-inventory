@@ -1,5 +1,5 @@
 export type ShelfLevel = 'bajo' | 'medio' | 'alto'
-export type UserRole = 'staff' | 'admin'
+export type UserRole = 'staff' | 'admin' | 'superadmin'
 
 export interface Shelf {
   id: string

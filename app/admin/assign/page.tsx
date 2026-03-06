@@ -9,19 +9,28 @@ import { ShelfDiagram } from '@/components/Shelf/ShelfDiagram'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useToast } from '@/components/ui/Toast'
+import { UserGreeting } from '@/components/ui/UserGreeting'
 
 function AssignForm() {
   const searchParams = useSearchParams()
   const productId = searchParams.get('productId')
+  const shelfIdParam = searchParams.get('shelfId')
+  const levelParam = searchParams.get('level') as ShelfLevel | null
   const router = useRouter()
   const { showToast } = useToast()
 
   const [product, setProduct] = useState<Product | null>(null)
-  const [shelfId, setShelfId] = useState<string | null>(null)
-  const [level, setLevel] = useState<ShelfLevel | null>(null)
+  const [shelfId, setShelfId] = useState<string | null>(shelfIdParam)
+  const [level, setLevel] = useState<ShelfLevel | null>(levelParam)
   const [quantity, setQuantity] = useState('')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  // Product search (used when coming from a shelf, no productId in URL)
+  const [productQuery, setProductQuery] = useState('')
+  const [productResults, setProductResults] = useState<Product[]>([])
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+
+  const activeProductId = productId ?? selectedProduct?.id ?? null
 
   useEffect(() => {
     if (!productId) return
@@ -30,16 +39,26 @@ function AssignForm() {
       .then((data) => {
         setProduct(data)
         if (data.location) {
-          setShelfId(data.location.shelf_id)
-          setLevel(data.location.level)
+          if (!shelfIdParam) setShelfId(data.location.shelf_id)
+          if (!levelParam) setLevel(data.location.level)
           setQuantity(String(data.location.quantity ?? ''))
           setNotes(data.location.notes ?? '')
         }
       })
-  }, [productId])
+  }, [productId, shelfIdParam, levelParam])
+
+  useEffect(() => {
+    if (!productQuery.trim()) { setProductResults([]); return }
+    const timer = setTimeout(() => {
+      fetch(`/api/products/search?q=${encodeURIComponent(productQuery)}`)
+        .then((r) => r.json())
+        .then((data) => setProductResults(Array.isArray(data) ? data : []))
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [productQuery])
 
   async function handleSave() {
-    if (!productId || !shelfId || !level) {
+    if (!activeProductId || !shelfId || !level) {
       showToast('Selecciona anaquel y nivel', 'error')
       return
     }
@@ -48,7 +67,7 @@ function AssignForm() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        product_id: productId,
+        product_id: activeProductId,
         shelf_id: shelfId,
         level,
         quantity: parseInt(quantity) || 0,
@@ -59,7 +78,11 @@ function AssignForm() {
     setSaving(false)
     if (res.ok) {
       showToast('Ubicacion guardada', 'success')
-      router.push(`/product/${productId}`)
+      if (shelfIdParam && !productId) {
+        router.push(`/admin/shelves/${shelfIdParam}`)
+      } else {
+        router.push(`/product/${activeProductId}`)
+      }
     } else {
       const data = await res.json()
       showToast(data.error ?? 'Error al guardar', 'error')
@@ -69,15 +92,18 @@ function AssignForm() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-black px-4 pt-12 pb-6">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-2 text-gray-400 text-sm mb-4"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Volver
-        </button>
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-gray-400 text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Volver
+          </button>
+          <UserGreeting />
+        </div>
         <h1 className="text-white text-xl font-bold">Asignar ubicacion</h1>
         {product && (
           <p className="text-gray-400 text-sm mt-1">{product.name}</p>
@@ -85,15 +111,61 @@ function AssignForm() {
       </header>
 
       <main className="px-4 py-6 flex flex-col gap-6 pb-32">
+        {/* Product search — shown when entering from a shelf (no productId in URL) */}
+        {!productId && (
+          <div className="bg-white rounded-2xl p-4 border border-gray-200">
+            <p className="text-sm font-semibold text-gray-700 mb-3">1. Selecciona el producto</p>
+            {selectedProduct ? (
+              <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-3 border border-gray-200">
+                <div>
+                  <p className="font-semibold text-gray-900 text-sm">{selectedProduct.name}</p>
+                  <p className="text-xs text-gray-400">{selectedProduct.sku}</p>
+                </div>
+                <button
+                  onClick={() => { setSelectedProduct(null); setProductQuery('') }}
+                  className="text-xs text-gray-400 hover:text-red-500 ml-3"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div>
+                <input
+                  type="text"
+                  value={productQuery}
+                  onChange={(e) => setProductQuery(e.target.value)}
+                  placeholder="Buscar por nombre, SKU o referencia..."
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
+                />
+                {productResults.length > 0 && (
+                  <div className="mt-2 flex flex-col gap-1 max-h-48 overflow-y-auto">
+                    {productResults.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => { setSelectedProduct(p); setProductQuery(''); setProductResults([]) }}
+                        className="text-left px-3 py-2 rounded-lg hover:bg-gray-50 border border-gray-100"
+                      >
+                        <p className="text-sm font-medium text-gray-900">{p.name}</p>
+                        <p className="text-xs text-gray-400">{p.sku}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Shelf picker */}
         <div className="bg-white rounded-2xl p-4 border border-gray-200">
-          <p className="text-sm font-semibold text-gray-700 mb-3">1. Selecciona el anaquel</p>
+          <p className="text-sm font-semibold text-gray-700 mb-3">{productId ? '1' : '2'}. Selecciona el anaquel</p>
           <ShelfPicker value={shelfId} onChange={setShelfId} />
         </div>
 
         {/* Level picker */}
         <div className="bg-white rounded-2xl p-4 border border-gray-200">
-          <p className="text-sm font-semibold text-gray-700 mb-3">2. Selecciona el nivel</p>
+          <p className="text-sm font-semibold text-gray-700 mb-3">{productId ? '2' : '3'}. Selecciona el nivel</p>
           <LevelPicker value={level} onChange={setLevel} />
         </div>
 
@@ -107,7 +179,7 @@ function AssignForm() {
 
         {/* Quantity & notes */}
         <div className="bg-white rounded-2xl p-4 border border-gray-200 flex flex-col gap-4">
-          <p className="text-sm font-semibold text-gray-700">3. Opcional</p>
+          <p className="text-sm font-semibold text-gray-700">{productId ? '3' : '4'}. Opcional</p>
           <Input
             label="Cantidad en stock"
             type="number"
@@ -131,7 +203,7 @@ function AssignForm() {
           className="w-full"
           onClick={handleSave}
           loading={saving}
-          disabled={!shelfId || !level}
+          disabled={!activeProductId || !shelfId || !level}
         >
           Guardar ubicacion
         </Button>

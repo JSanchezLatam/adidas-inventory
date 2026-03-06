@@ -8,6 +8,8 @@ import { LocationBadge } from '@/components/Product/LocationBadge'
 import { ShelfDiagram } from '@/components/Shelf/ShelfDiagram'
 import { Button } from '@/components/ui/Button'
 import { useAuthStore } from '@/store/auth.store'
+import { UserGreeting } from '@/components/ui/UserGreeting'
+import { ProductDetailSkeleton } from '@/components/ui/Skeleton'
 
 interface ProductWithLocation extends Product {
   location: ProductLocation | null
@@ -42,11 +44,7 @@ export default function ProductDetailPage({
   }, [id])
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-gray-300 border-t-black rounded-full animate-spin" />
-      </div>
-    )
+    return <ProductDetailSkeleton />
   }
 
   if (error || !product) {
@@ -64,15 +62,18 @@ export default function ProductDetailPage({
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-black px-4 pt-12 pb-6">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-2 text-gray-400 text-sm mb-4"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Volver
-        </button>
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-gray-400 text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Volver
+          </button>
+          <UserGreeting />
+        </div>
         <h1 className="text-white text-xl font-bold leading-tight">{product.name}</h1>
         <div className="flex items-center gap-3 mt-2 flex-wrap">
           <span className="text-gray-400 text-sm">SKU: {product.sku}</span>
@@ -121,36 +122,46 @@ export default function ProductDetailPage({
             Detalles del producto
           </p>
           <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs text-gray-400">SKU</p>
+              <p className="text-sm font-medium text-gray-800 font-mono">{product.sku}</p>
+            </div>
+            {product.reference && (
+              <div>
+                <p className="text-xs text-gray-400">Referencia</p>
+                <p className="text-sm font-medium text-gray-800 font-mono">{product.reference}</p>
+              </div>
+            )}
+            {product.barcode && (
+              <div className="col-span-2">
+                <p className="text-xs text-gray-400">Codigo de barras</p>
+                <p className="text-sm font-medium text-gray-800 font-mono">{product.barcode}</p>
+              </div>
+            )}
             {product.category && (
               <div>
                 <p className="text-xs text-gray-400">Categoria</p>
                 <p className="text-sm font-medium text-gray-800">{product.category}</p>
               </div>
             )}
-            {product.size && (
+            {/* {product.size && (
               <div>
                 <p className="text-xs text-gray-400">Talla</p>
                 <p className="text-sm font-medium text-gray-800">{product.size}</p>
               </div>
-            )}
-            {product.color && (
+            )} */}
+            {/* {product.color && (
               <div>
                 <p className="text-xs text-gray-400">Color</p>
                 <p className="text-sm font-medium text-gray-800">{product.color}</p>
               </div>
-            )}
-            {product.barcode && (
-              <div>
-                <p className="text-xs text-gray-400">Codigo de barras</p>
-                <p className="text-sm font-medium text-gray-800 font-mono">{product.barcode}</p>
-              </div>
-            )}
+            )} */}
           </div>
         </div>
       </main>
 
       {/* Admin action */}
-      {role === 'admin' && (
+      {(role === 'admin' || role === 'superadmin') && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-4">
           <Link href={`/admin/assign?productId=${product.id}`}>
             <Button size="lg" className="w-full">

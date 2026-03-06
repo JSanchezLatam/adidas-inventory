@@ -1,31 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { requireAdmin, requireSuperAdmin } from '@/lib/supabase/auth-helpers'
 
 export async function GET() {
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('shelves')
-    .select('*')
-    .order('code')
-
+  const { data, error } = await supabase.from('shelves').select('*').order('code')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data ?? [])
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createServiceClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: profile } = await supabase.from('user_profiles').select('role').eq('id', user.id).single() as any
-  if (profile?.role !== 'admin') {
-    return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  }
+  const admin = await requireAdmin()
+  if (!admin) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
 
   const body = await request.json()
-  const { data, error } = await supabase.from('shelves').insert(body).select().single()
+  const service = createAdminClient()
+  const { data, error } = await service.from('shelves').insert(body).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
+}
+
+export async function DELETE(request: NextRequest) {
+  const superadmin = await requireSuperAdmin()
+  if (!superadmin) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+
+  const { id } = await request.json()
+  const service = createAdminClient()
+  const { error } = await service.from('shelves').delete().eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
 }

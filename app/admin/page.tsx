@@ -3,10 +3,12 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth.store'
+import { UserGreeting } from '@/components/ui/UserGreeting'
 import { createClient } from '@/lib/supabase/client'
 
 export default function AdminPage() {
   const { role, clearAuth } = useAuthStore()
+  const isSuperAdmin = role === 'superadmin'
   const router = useRouter()
 
   async function handleLogout() {
@@ -14,6 +16,7 @@ export default function AdminPage() {
     await supabase.auth.signOut()
     clearAuth()
     router.push('/login')
+    router.refresh()
   }
 
   const menuItems = [
@@ -38,19 +41,34 @@ export default function AdminPage() {
       desc: 'Mover o asignar producto a un anaquel',
       adminOnly: true,
     },
+    {
+      href: '/admin/users',
+      icon: '👥',
+      title: 'Usuarios',
+      desc: 'Crear usuarios, roles y contraseñas',
+      adminOnly: true,
+    },
   ]
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-black px-4 pt-12 pb-6">
-        <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">adidas</p>
-        <h1 className="text-white text-xl font-bold">Administracion</h1>
-        <p className="text-gray-400 text-sm mt-1 capitalize">Rol: {role ?? 'staff'}</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs text-gray-400 uppercase tracking-widest">adidas</p>
+          <button
+            onClick={handleLogout}
+            className="text-xs text-gray-400 hover:text-white transition-colors"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+        <UserGreeting />
+        <h1 className="text-white text-xl font-bold mt-3">Administracion</h1>
       </header>
 
       <main className="px-4 py-4 flex flex-col gap-3 pb-24">
         {menuItems
-          .filter((item) => !item.adminOnly || role === 'admin')
+          .filter((item) => !item.adminOnly || role === 'admin' || isSuperAdmin)
           .map((item) => (
             <Link key={item.href} href={item.href}>
               <div className="bg-white rounded-2xl border border-gray-200 p-4 flex items-center gap-4 active:bg-gray-50">
@@ -71,12 +89,6 @@ export default function AdminPage() {
             </Link>
           ))}
 
-        <button
-          onClick={handleLogout}
-          className="mt-4 text-sm text-red-500 text-center py-2"
-        >
-          Cerrar sesion
-        </button>
       </main>
 
       {/* Bottom nav */}
