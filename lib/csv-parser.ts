@@ -52,6 +52,7 @@ export function parseProductsCSV(csvText: string): CSVParseResult {
       size: row.size?.trim() || row.talla?.trim() || null,
       color: row.color?.trim() || null,
       category: row.category?.trim() || row.categoria?.trim() || null,
+      status: 'active',
     })
   })
 
