@@ -111,7 +111,7 @@ export default function ShelfDetailPage({ params }: { params: Promise<{ id: stri
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <header className="bg-black px-4 pt-12 pb-6">
+        <header className="sticky top-0 z-10 bg-black px-4 pt-12 pb-6">
           <Skeleton className="h-3 w-16 mb-4 bg-gray-700" />
           <Skeleton className="h-7 w-24 bg-gray-700" />
           <Skeleton className="h-4 w-40 mt-2 bg-gray-700" />
@@ -142,7 +142,7 @@ export default function ShelfDetailPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-black px-4 pt-12 pb-6">
+      <header className="sticky top-0 z-10 bg-black px-4 pt-12 pb-6">
         <div className="flex items-center justify-between mb-4">
           <button
             onClick={() => router.back()}

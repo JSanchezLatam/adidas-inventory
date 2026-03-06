@@ -53,7 +53,7 @@ export default function ShelvesAdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-black px-4 pt-12 pb-4">
+      <header className="sticky top-0 z-10 bg-black px-4 pt-12 pb-4">
         <div className="flex items-center justify-between mb-3">
           <button
             onClick={() => router.back()}

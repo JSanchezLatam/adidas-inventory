@@ -61,7 +61,7 @@ export default function ProductDetailPage({
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-black px-4 pt-12 pb-6">
+      <header className="sticky top-0 z-10 bg-black px-4 pt-12 pb-6">
         <div className="flex items-center justify-between mb-4">
           <button
             onClick={() => router.back()}

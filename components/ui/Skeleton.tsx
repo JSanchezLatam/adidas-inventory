@@ -41,7 +41,7 @@ export function ShelfCardSkeleton() {
 export function ProductDetailSkeleton() {
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-black px-4 pt-12 pb-6">
+      <header className="sticky top-0 z-10 bg-black px-4 pt-12 pb-6">
         <Skeleton className="h-3 w-12 mb-4 bg-gray-700" />
         <Skeleton className="h-6 w-3/4 bg-gray-700" />
         <Skeleton className="h-4 w-1/2 mt-2 bg-gray-700" />
