@@ -79,9 +79,9 @@ function AssignForm() {
     if (res.ok) {
       showToast('Ubicacion guardada', 'success')
       if (shelfIdParam && !productId) {
-        router.push(`/admin/shelves/${shelfIdParam}`)
+        router.replace(`/admin/shelves/${shelfIdParam}`)
       } else {
-        router.push(`/product/${activeProductId}`)
+        router.replace(`/product/${activeProductId}`)
       }
     } else {
       const data = await res.json()

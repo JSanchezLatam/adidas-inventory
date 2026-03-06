@@ -36,7 +36,7 @@ export default function LoginPage() {
     const role = (data.user.app_metadata?.role as UserRole) ?? 'staff'
 
     setAuth(data.user, data.session, role)
-    router.push('/')
+    router.replace('/')
   }
 
   return (
