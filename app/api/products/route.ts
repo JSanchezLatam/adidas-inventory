@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-
-async function requireAdmin(supabase: Awaited<ReturnType<typeof createAdminClient>>) {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: profile } = await supabase.from('user_profiles').select('role').eq('id', user.id).single() as any
-  return (profile?.role === 'admin' || profile?.role === 'superadmin') ? user : null
-}
+import { requireAdmin } from '@/lib/supabase/auth-helpers'
 
 export async function POST(request: NextRequest) {
-  const supabase = await createAdminClient()
-  const admin = await requireAdmin(supabase)
+  const admin = await requireAdmin()
   if (!admin) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
 
+  const supabase = createAdminClient()
   const body = await request.json()
   const { sku, barcode } = body
 
