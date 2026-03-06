@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get('q')?.trim()
+  const all = request.nextUrl.searchParams.get('all') === 'true'
 
   const supabase = createAdminClient()
 
@@ -10,7 +11,12 @@ export async function GET(request: NextRequest) {
     .from('products')
     .select('*, location:product_locations(*, shelf:shelves(*))')
     .order('name')
-    .limit(100)
+    .limit(200)
+
+  if (!all) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query = (query as any).eq('status', 'active')
+  }
 
   if (q && q.length >= 1) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

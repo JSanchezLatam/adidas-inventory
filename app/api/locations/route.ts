@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/supabase/auth-helpers'
 
+export async function DELETE(request: NextRequest) {
+  const user = await requireAdmin()
+  if (!user) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+
+  const productId = request.nextUrl.searchParams.get('product_id')
+  if (!productId) return NextResponse.json({ error: 'product_id requerido' }, { status: 400 })
+
+  const supabase = createAdminClient()
+  await supabase.from('product_locations').delete().eq('product_id', productId)
+  await supabase.from('products')
+    .update({ status: 'inactive', updated_at: new Date().toISOString() })
+    .eq('id', productId)
+
+  return NextResponse.json({ ok: true })
+}
+
 export async function GET() {
   const supabase = await createClient()
   const { data, error } = await supabase

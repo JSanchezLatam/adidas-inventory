@@ -1,5 +1,6 @@
 export type ShelfLevel = 'bajo' | 'medio' | 'alto'
 export type UserRole = 'staff' | 'admin' | 'superadmin'
+export type ProductStatus = 'active' | 'inactive'
 
 export interface Shelf {
   id: string
@@ -18,6 +19,7 @@ export interface Product {
   size: string | null
   color: string | null
   category: string | null
+  status: ProductStatus
   created_at: string
   updated_at: string
 }

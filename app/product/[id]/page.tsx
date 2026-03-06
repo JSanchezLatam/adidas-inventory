@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button'
 import { useAuthStore } from '@/store/auth.store'
 import { UserGreeting } from '@/components/ui/UserGreeting'
 import { ProductDetailSkeleton } from '@/components/ui/Skeleton'
+import { useToast } from '@/components/ui/Toast'
 
 interface ProductWithLocation extends Product {
   location: ProductLocation | null
@@ -24,8 +25,12 @@ export default function ProductDetailPage({
   const [product, setProduct] = useState<ProductWithLocation | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [reactivating, setReactivating] = useState(false)
   const role = useAuthStore((s) => s.role)
   const router = useRouter()
+  const { showToast } = useToast()
+  const isAdmin = role === 'admin' || role === 'superadmin'
 
   useEffect(() => {
     fetch(`/api/products/${id}`)
@@ -43,6 +48,37 @@ export default function ProductDetailPage({
       })
   }, [id])
 
+  async function handleRemove() {
+    if (!product) return
+    if (!confirm('¿Quitar el producto del anaquel? El producto quedará como inactivo.')) return
+    setRemoving(true)
+    const res = await fetch(`/api/locations?product_id=${product.id}`, { method: 'DELETE' })
+    setRemoving(false)
+    if (res.ok) {
+      showToast('Producto quitado del anaquel', 'success')
+      router.replace('/')
+    } else {
+      showToast('Error al quitar el producto', 'error')
+    }
+  }
+
+  async function handleReactivate() {
+    if (!product) return
+    setReactivating(true)
+    const res = await fetch(`/api/products/${product.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'active' }),
+    })
+    setReactivating(false)
+    if (res.ok) {
+      showToast('Producto reactivado', 'success')
+      router.replace(`/admin/assign?productId=${product.id}`)
+    } else {
+      showToast('Error al reactivar', 'error')
+    }
+  }
+
   if (loading) {
     return <ProductDetailSkeleton />
   }
@@ -57,6 +93,8 @@ export default function ProductDetailPage({
       </div>
     )
   }
+
+  const isInactive = product.status === 'inactive'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -74,7 +112,14 @@ export default function ProductDetailPage({
           </button>
           <UserGreeting />
         </div>
-        <h1 className="text-white text-xl font-bold leading-tight">{product.name}</h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-white text-xl font-bold leading-tight">{product.name}</h1>
+          {isInactive && (
+            <span className="text-xs font-semibold bg-gray-600 text-gray-200 px-2 py-0.5 rounded-full">
+              Inactivo
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-3 mt-2 flex-wrap">
           <span className="text-gray-400 text-sm">SKU: {product.sku}</span>
           {product.reference && (
@@ -84,7 +129,7 @@ export default function ProductDetailPage({
       </header>
 
       <main className="px-4 py-6 flex flex-col gap-6 pb-28">
-        {/* Location card — most prominent */}
+        {/* Location card */}
         <div className="bg-white rounded-2xl p-5 border border-gray-200">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
             Ubicacion en bodega
@@ -144,30 +189,46 @@ export default function ProductDetailPage({
                 <p className="text-sm font-medium text-gray-800">{product.category}</p>
               </div>
             )}
-            {/* {product.size && (
-              <div>
-                <p className="text-xs text-gray-400">Talla</p>
-                <p className="text-sm font-medium text-gray-800">{product.size}</p>
-              </div>
-            )} */}
-            {/* {product.color && (
-              <div>
-                <p className="text-xs text-gray-400">Color</p>
-                <p className="text-sm font-medium text-gray-800">{product.color}</p>
-              </div>
-            )} */}
           </div>
         </div>
       </main>
 
-      {/* Admin action */}
-      {(role === 'admin' || role === 'superadmin') && (
+      {/* Admin actions */}
+      {isAdmin && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-4">
-          <Link href={`/admin/assign?productId=${product.id}`}>
-            <Button size="lg" className="w-full">
-              {product.location ? 'Cambiar ubicacion' : 'Asignar ubicacion'}
+          {isInactive ? (
+            <Button
+              size="lg"
+              className="w-full"
+              onClick={handleReactivate}
+              loading={reactivating}
+            >
+              Reactivar y asignar ubicacion
             </Button>
-          </Link>
+          ) : product.location ? (
+            <div className="flex gap-3">
+              <Button
+                size="lg"
+                variant="secondary"
+                className="flex-1"
+                onClick={handleRemove}
+                loading={removing}
+              >
+                Quitar del anaquel
+              </Button>
+              <Link href={`/admin/assign?productId=${product.id}`} className="flex-1">
+                <Button size="lg" className="w-full">
+                  Cambiar ubicacion
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <Link href={`/admin/assign?productId=${product.id}`}>
+              <Button size="lg" className="w-full">
+                Asignar ubicacion
+              </Button>
+            </Link>
+          )}
         </div>
       )}
     </div>

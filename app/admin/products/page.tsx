@@ -37,6 +37,20 @@ export default function ProductsAdminPage() {
     }
   }
 
+  async function handleReactivate(p: Product) {
+    const res = await fetch(`/api/products/${p.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'active' }),
+    })
+    if (res.ok) {
+      showToast('Producto reactivado', 'success')
+      router.push(`/admin/assign?productId=${p.id}`)
+    } else {
+      showToast('Error al reactivar', 'error')
+    }
+  }
+
   const filtered = products.filter(
     (p) =>
       p.name.toLowerCase().includes(query.toLowerCase()) ||
@@ -45,7 +59,8 @@ export default function ProductsAdminPage() {
   )
 
   useEffect(() => {
-    fetch('/api/products/search')
+    // Load all products including inactive for admin view
+    fetch('/api/products/search?all=true')
       .then((r) => r.json())
       .then((data) => {
         setProducts(data)
@@ -68,8 +83,7 @@ export default function ProductsAdminPage() {
 
     if (res.ok) {
       showToast(`${data.imported} productos importados`, 'success')
-      // Reload
-      fetch('/api/products/search').then((r) => r.json()).then(setProducts)
+      fetch('/api/products/search?all=true').then((r) => r.json()).then(setProducts)
     } else {
       showToast(data.error ?? 'Error al importar', 'error')
     }
@@ -133,33 +147,57 @@ export default function ProductsAdminPage() {
             {Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)}
           </div>
         ) : (
-          filtered.map((p) => (
-            <div
-              key={p.id}
-              className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center gap-3"
-            >
+          filtered.map((p) => {
+            const isInactive = p.status === 'inactive'
+            return (
               <div
-                className="flex-1 min-w-0 cursor-pointer active:opacity-70"
-                onClick={() => router.push(`/product/${p.id}`)}
+                key={p.id}
+                className={`bg-white rounded-xl border px-4 py-3 flex items-center gap-3 ${
+                  isInactive ? 'border-gray-100 opacity-60' : 'border-gray-200'
+                }`}
               >
-                <p className="font-medium text-gray-900 text-sm truncate">{p.name}</p>
-                <p className="text-xs text-gray-400">{p.sku} {p.size ? `· T${p.size}` : ''}</p>
-              </div>
-              {isSuperAdmin ? (
-                <button
-                  onClick={() => handleDelete(p)}
-                  disabled={deletingId === p.id}
-                  className="text-xs text-red-500 flex-shrink-0 disabled:opacity-40 px-1"
+                <div
+                  className="flex-1 min-w-0 cursor-pointer active:opacity-70"
+                  onClick={() => router.push(`/product/${p.id}`)}
                 >
-                  {deletingId === p.id ? '...' : 'Eliminar'}
-                </button>
-              ) : (
-                <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              )}
-            </div>
-          ))
+                  <p className={`font-medium text-sm truncate ${isInactive ? 'text-gray-400' : 'text-gray-900'}`}>
+                    {p.name}
+                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-xs text-gray-400">{p.sku}</p>
+                    {isInactive && (
+                      <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                        inactivo
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {isInactive && (
+                    <button
+                      onClick={() => handleReactivate(p)}
+                      className="text-xs text-blue-600 font-medium px-1"
+                    >
+                      Reactivar
+                    </button>
+                  )}
+                  {isSuperAdmin ? (
+                    <button
+                      onClick={() => handleDelete(p)}
+                      disabled={deletingId === p.id}
+                      className="text-xs text-red-500 disabled:opacity-40 px-1"
+                    >
+                      {deletingId === p.id ? '...' : 'Eliminar'}
+                    </button>
+                  ) : !isInactive ? (
+                    <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  ) : null}
+                </div>
+              </div>
+            )
+          })
         )}
       </main>
 
@@ -172,6 +210,10 @@ export default function ProductsAdminPage() {
             setShowForm(false)
             showToast('Producto creado', 'success')
           }}
+          onReactivate={(p) => {
+            setShowForm(false)
+            handleReactivate(p)
+          }}
         />
       )}
     </div>
@@ -181,13 +223,16 @@ export default function ProductsAdminPage() {
 function AddProductModal({
   onClose,
   onSaved,
+  onReactivate,
 }: {
   onClose: () => void
   onSaved: (p: Product) => void
+  onReactivate: (p: Product) => void
 }) {
   const [form, setForm] = useState({ sku: '', name: '', barcode: '', reference: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [inactiveProduct, setInactiveProduct] = useState<Product | null>(null)
 
   function set(field: string, value: string) {
     setForm((f) => ({ ...f, [field]: value }))
@@ -200,6 +245,8 @@ function AddProductModal({
       return
     }
     setSaving(true)
+    setError('')
+    setInactiveProduct(null)
     const body = Object.fromEntries(
       Object.entries(form).map(([k, v]) => [k, v.trim() || null])
     )
@@ -209,6 +256,15 @@ function AddProductModal({
       body: JSON.stringify(body),
     })
     setSaving(false)
+    if (res.status === 409) {
+      const data = await res.json()
+      if (data.error === 'inactive') {
+        setInactiveProduct(data.product)
+      } else {
+        setError(data.error ?? 'El producto ya existe')
+      }
+      return
+    }
     if (res.ok) {
       const data = await res.json()
       onSaved(data)
@@ -225,17 +281,36 @@ function AddProductModal({
           <h2 className="text-lg font-bold">Nuevo producto</h2>
           <button onClick={onClose} className="text-gray-400">✕</button>
         </div>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <Input label="SKU *" value={form.sku} onChange={(e) => set('sku', e.target.value)} placeholder="HQ8707" />
-          <Input label="Nombre *" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Termo Adidas 500ml" />
-          <Input label="Codigo de barras" value={form.barcode} onChange={(e) => set('barcode', e.target.value)} placeholder="4064057886687" />
-          <Input label="Referencia" value={form.reference} onChange={(e) => set('reference', e.target.value)} placeholder="GZ1234" />
-          {/* <Input label="Categoria" value={form.category} onChange={(e) => set('category', e.target.value)} placeholder="Running" /> */}
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          <Button type="submit" size="lg" loading={saving} className="w-full mt-2">
-            Guardar
-          </Button>
-        </form>
+
+        {inactiveProduct ? (
+          <div className="flex flex-col gap-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <p className="text-sm font-semibold text-amber-800 mb-1">Producto inactivo encontrado</p>
+              <p className="text-sm text-amber-700">
+                <strong>{inactiveProduct.name}</strong> ({inactiveProduct.sku}) ya existe en el sistema pero está marcado como inactivo.
+              </p>
+              <p className="text-sm text-amber-700 mt-1">¿Deseas reactivarlo y asignarle una ubicacion?</p>
+            </div>
+            <Button size="lg" className="w-full" onClick={() => onReactivate(inactiveProduct)}>
+              Reactivar y asignar ubicacion
+            </Button>
+            <button onClick={() => setInactiveProduct(null)} className="text-sm text-gray-500 text-center">
+              Cancelar
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            <Input label="SKU *" value={form.sku} onChange={(e) => set('sku', e.target.value)} placeholder="HQ8707" />
+            <Input label="Nombre *" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Termo Adidas 500ml" />
+            <Input label="Codigo de barras" value={form.barcode} onChange={(e) => set('barcode', e.target.value)} placeholder="4064057886687" />
+            <Input label="Referencia" value={form.reference} onChange={(e) => set('reference', e.target.value)} placeholder="GZ1234" />
+            {/* <Input label="Categoria" value={form.category} onChange={(e) => set('category', e.target.value)} placeholder="Running" /> */}
+            {error && <p className="text-red-500 text-sm">{error}</p>}
+            <Button type="submit" size="lg" loading={saving} className="w-full mt-2">
+              Guardar
+            </Button>
+          </form>
+        )}
       </div>
     </div>
   )
