@@ -22,10 +22,11 @@ export function ScannerModal({ onScan, onClose }: ScannerModalProps) {
     onScan: handleScan,
   })
 
+  // startScanning and stopScanning are stable (empty deps), so [] is correct here
   useEffect(() => {
     startScanning()
     return () => stopScanning()
-  }, [startScanning, stopScanning])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault()
