@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+     "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=davekbzoefjjjujladdb"
+    }
+  },
+    "vercel": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.vercel.com/sse",
+        "--header",
+        "Authorization:${AUTH_HEADER}"
+      ],
+      "env": {
+        "AUTH_HEADER": "Bearer vca_1Xi3fKui5UJlU6uuxgeNRPZv5X2WPVWDuWjb2XSZTyHEF16H333023DD"
+      }
+    }
+  }
+}

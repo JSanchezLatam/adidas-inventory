@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bodega adidas — Sistema de Inventario
 
-## Getting Started
+App web PWA para rastrear la ubicacion de productos en bodega. Escanea o busca un producto y ve en que anaquel y nivel esta.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Next.js 14** (App Router) + TypeScript
+- **Supabase** — base de datos PostgreSQL + autenticacion
+- **Tailwind CSS** — UI mobile-first
+- **@zxing/browser** — escaner de codigo de barras/QR via camara
+- **TanStack Query** — cache offline
+- **Vercel** — deploy
+
+---
+
+## Setup: Paso a paso
+
+### 1. Crear proyecto en Supabase
+
+1. Ve a [supabase.com](https://supabase.com) y crea un nuevo proyecto
+2. En el SQL Editor, ejecuta **`supabase/schema.sql`** (crea todas las tablas y politicas RLS)
+3. Luego ejecuta **`supabase/seed.sql`** para cargar los anaqueles iniciales
+
+### 2. Crear el primer usuario admin
+
+En el Dashboard de Supabase → Authentication → Users:
+1. Crea un nuevo usuario con email y contrasena
+2. Luego en el SQL Editor ejecuta:
+
+```sql
+update public.user_profiles
+set role = 'admin', name = 'Tu Nombre'
+where username = 'tu-email@ejemplo.com';
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Configurar variables de entorno
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Copia `.env.example` a `.env.local` y llena los valores:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+```
 
-## Learn More
+Los encuentras en: Supabase Dashboard → Settings → API
 
-To learn more about Next.js, take a look at the following resources:
+### 4. Instalar y correr
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Deploy en Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Conecta el repo en vercel.com
+2. Agrega las 3 variables de entorno en Vercel → Settings → Environment Variables
+3. Deploy
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Instalar como app (PWA)
+
+- **Android:** Chrome → menu "..." → "Anadir a pantalla de inicio"
+- **iOS:** Safari → boton compartir → "En pantalla de inicio"
+
+---
+
+## Importar productos desde CSV
+
+Columnas soportadas (primera fila = encabezado):
+
+| Columna | Requerida |
+|---------|-----------|
+| `sku` | Si |
+| `name` | Si |
+| `barcode` | No |
+| `reference` | No |
+| `size` | No |
+| `color` | No |
+| `category` | No |
+
+---
+
+## Estructura de anaqueles
+
+Cada anaquel tiene 3 niveles: `ALTO`, `MEDIO`, `BAJO`
+
+Para agregar anaqueles: Admin → Anaqueles → "+ Nuevo"

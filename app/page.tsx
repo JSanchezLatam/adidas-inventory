@@ -1,101 +1,143 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import { useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { useProductSearch } from '@/hooks/useProductSearch'
+import { ProductCard } from '@/components/Product/ProductCard'
+import { ScannerModal } from '@/components/Scanner/ScannerModal'
+import { useToast } from '@/components/ui/Toast'
+
+export default function SearchPage() {
+  const [query, setQuery] = useState('')
+  const [showScanner, setShowScanner] = useState(false)
+  const { data: results, isLoading } = useProductSearch(query)
+  const router = useRouter()
+  const { showToast } = useToast()
+
+  const handleScan = useCallback(
+    async (code: string) => {
+      // Log the scan
+      fetch('/api/scans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scanned_value: code, action: 'lookup' }),
+      }).catch(() => {})
+
+      // Resolve code
+      const res = await fetch(`/api/products/resolve/${encodeURIComponent(code)}`)
+      if (res.ok) {
+        const data = await res.json()
+        router.push(`/product/${data.product.id}`)
+      } else {
+        setQuery(code)
+        showToast(`Codigo no encontrado: ${code}`, 'error')
+      }
+    },
+    [router, showToast]
+  )
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="sticky top-0 z-10 bg-black px-4 pt-12 pb-4">
+        <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">adidas</p>
+        <h1 className="text-white text-xl font-bold">Bodega</h1>
+        {/* Search bar */}
+        <div className="flex gap-2 mt-3">
+          <div className="flex-1 relative">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+            </svg>
+            <input
+              autoFocus
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Nombre, SKU, referencia o codigo..."
+              className="w-full rounded-xl bg-gray-800 text-white placeholder:text-gray-500 pl-10 pr-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-white/30"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          {/* Camera button */}
+          <button
+            onClick={() => setShowScanner(true)}
+            className="flex items-center justify-center w-12 h-12 rounded-xl bg-white text-black hover:bg-gray-100 transition-colors flex-shrink-0"
+            aria-label="Escanear codigo"
           >
-            Read our docs
-          </a>
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9V5a2 2 0 012-2h4M3 15v4a2 2 0 002 2h4M21 9V5a2 2 0 00-2-2h-4M21 15v4a2 2 0 01-2 2h-4M8 12h8" />
+            </svg>
+          </button>
         </div>
+      </header>
+
+      {/* Results */}
+      <main className="px-4 py-4 pb-24 flex flex-col gap-3">
+        {/* Idle state */}
+        {!query && (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="text-5xl mb-4">📦</div>
+            <p className="text-gray-500 text-lg font-medium">Busca un producto</p>
+            <p className="text-gray-400 text-sm mt-1">
+              Escribe o escanea el codigo de barras
+            </p>
+          </div>
+        )}
+
+        {/* Loading */}
+        {isLoading && query.length >= 2 && (
+          <div className="flex justify-center py-10">
+            <div className="w-8 h-8 border-2 border-gray-300 border-t-black rounded-full animate-spin" />
+          </div>
+        )}
+
+        {/* No results */}
+        {!isLoading && query.length >= 2 && results?.length === 0 && (
+          <div className="flex flex-col items-center py-16 text-center">
+            <div className="text-4xl mb-3">🔍</div>
+            <p className="text-gray-600 font-medium">Sin resultados para &ldquo;{query}&rdquo;</p>
+            <p className="text-gray-400 text-sm mt-1">Verifica el codigo o usa el escaner</p>
+          </div>
+        )}
+
+        {/* Product cards */}
+        {results?.map((product) => (
+          <ProductCard key={product.id} product={product} />
+        ))}
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
+
+      {/* Bottom nav */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex">
+        <a href="/" className="flex-1 flex flex-col items-center py-3 text-black">
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+          <span className="text-xs mt-1 font-semibold">Buscar</span>
         </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
+        <a href="/admin" className="flex-1 flex flex-col items-center py-3 text-gray-400">
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span className="text-xs mt-1">Admin</span>
         </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </nav>
+
+      {showScanner && (
+        <ScannerModal onScan={handleScan} onClose={() => setShowScanner(false)} />
+      )}
     </div>
-  );
+  )
 }
